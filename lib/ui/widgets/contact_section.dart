@@ -1,3 +1,4 @@
+import 'package:spare_website/services/enquiry_service.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:spare_website/ui/common/app_colors.dart';
@@ -32,6 +33,8 @@ class _ContactSectionState extends State<ContactSection> {
   final _modelController = TextEditingController();
   final _partController = TextEditingController();
   final _messageController = TextEditingController();
+  bool _isSubmitting = false;
+  final _enquiryService = EnquiryService();
 
   @override
   void initState() {
@@ -68,74 +71,115 @@ class _ContactSectionState extends State<ContactSection> {
     super.dispose();
   }
 
-  void _handleSubmit() {
+  Future<void> _handleSubmit() async {
     if (_formKey.currentState?.validate() ?? false) {
-      showDialog(
-        context: context,
-        builder: (context) => Dialog(
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          child: Container(
-            padding: const EdgeInsets.all(32),
-            constraints: const BoxConstraints(maxWidth: 460),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: kcPrimaryLight,
+      setState(() {
+        _isSubmitting = true;
+      });
+
+      final name = _nameController.text.trim();
+      final phone = _mobileController.text.trim();
+      final brand = _brandController.text.trim();
+      final model = _modelController.text.trim();
+      final part = _partController.text.trim();
+      final message = _messageController.text.trim();
+
+      try {
+        await _enquiryService.submitEnquiry(
+          name: name,
+          phone: phone,
+          brand: brand,
+          model: model,
+          partName: part,
+          message: message,
+        );
+
+        if (!mounted) return;
+
+        showDialog(
+          context: context,
+          builder: (context) => Dialog(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            child: Container(
+              padding: const EdgeInsets.all(32),
+              constraints: const BoxConstraints(maxWidth: 460),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: kcPrimaryLight,
+                    ),
+                    child: const Icon(
+                      Icons.check_circle_rounded,
+                      color: kcPrimaryColor,
+                      size: 48,
+                    ),
                   ),
-                  child: const Icon(
-                    Icons.check_circle_rounded,
-                    color: kcPrimaryColor,
-                    size: 48,
+                  verticalSpaceMedium,
+                  Text(
+                    'Enquiry Sent Successfully!',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: kcTextDark,
+                    ),
                   ),
-                ),
-                verticalSpaceMedium,
-                Text(
-                  'Enquiry Sent Successfully!',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: kcTextDark,
+                  verticalSpaceSmall,
+                  Text(
+                    'Thank you, ${name.isEmpty ? "Valued Customer" : name}. Our spare parts specialist in Coimbatore will check stock availability for your $brand $model and contact you at $phone.',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      color: kcTextSecondary,
+                      height: 1.4,
+                    ),
                   ),
-                ),
-                verticalSpaceSmall,
-                Text(
-                  'Thank you, ${_nameController.text.isEmpty ? 'Valued Customer' : _nameController.text}. Our spare parts specialist in Coimbatore will check stock availability for your ${_brandController.text} ${_modelController.text} and contact you at ${_mobileController.text}.',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 13,
-                    color: kcTextSecondary,
-                    height: 1.4,
+                  verticalSpaceLarge,
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      _formKey.currentState?.reset();
+                      _nameController.clear();
+                      _mobileController.clear();
+                      _brandController.clear();
+                      _modelController.clear();
+                      _partController.clear();
+                      _messageController.clear();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: kcPrimaryDark,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 28, vertical: 14),
+                    ),
+                    child: const Text('Done'),
                   ),
-                ),
-                verticalSpaceLarge,
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    _formKey.currentState?.reset();
-                    _nameController.clear();
-                    _mobileController.clear();
-                    _brandController.clear();
-                    _modelController.clear();
-                    _partController.clear();
-                    _messageController.clear();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: kcPrimaryDark,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 28, vertical: 14),
-                  ),
-                  child: const Text('Done'),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
-      );
+        );
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Failed to submit enquiry: ${e.toString().replaceAll("Exception:", "").trim()}',
+              ),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isSubmitting = false;
+          });
+        }
+      }
     }
   }
 
@@ -397,29 +441,40 @@ class _ContactSectionState extends State<ContactSection> {
                     width: isDesktop ? 280 : double.infinity,
                     height: 50,
                     child: ElevatedButton(
-                      onPressed: _handleSubmit,
+                      onPressed: _isSubmitting ? null : _handleSubmit,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: kcPrimaryColor,
+                        disabledBackgroundColor: kcPrimaryColor.withValues(alpha: 0.6),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.send_rounded,
-                              size: 18, color: Colors.white),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Send Enquiry',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white,
+                      child: _isSubmitting
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.send_rounded,
+                                    size: 18, color: Colors.white),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Send Enquiry',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                        ],
-                      ),
                     ),
                   ),
 
